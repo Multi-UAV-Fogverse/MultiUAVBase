@@ -9,3 +9,6 @@ supervision
 torch
 asyncio
 djitellopy
+flask 
+flask-socketio
+websocket-client
