@@ -93,7 +93,7 @@ def process(data):
         return data
 
 def tello_video(tello, drone_number):
-    uav_headers_logger = ["uav_id", "frame_id", "created_timestamp", "executor_timestamp", "latency"]
+    uav_headers_logger = ["uav_id", "frame_id", "created_timestamp", "client_timestamp", "latency"]
     fogverse_uav_logger = FogVerseLogging(
         name=f'uav_{drone_number}_scenario_1',
         dirname="uav-logs",
@@ -102,7 +102,7 @@ def tello_video(tello, drone_number):
     )
     frame_id = 0
     while not landed:
-        before_timestamp = get_timestamp()
+        created_timestamp = get_timestamp()
 
         frame = tello.get_frame_read().frame
         frame_id += 1
@@ -110,9 +110,9 @@ def tello_video(tello, drone_number):
         cv2.imshow(f'Tello {drone_number}' , frame)
         cv2.moveWindow(f'Tello {drone_number}', (drone_number - 1)*900, 50)
 
-        after_timestamp = get_timestamp()
-        latency = before_timestamp - after_timestamp
-        frame_log = [drone_number, frame_id, before_timestamp, after_timestamp, latency]
+        client_timestamp = get_timestamp()
+        latency = client_timestamp - created_timestamp
+        frame_log = [drone_number, frame_id, created_timestamp, client_timestamp, latency]
         fogverse_uav_logger.csv_log(frame_log)
 
         if cv2.waitKey(50) & 0xFF == ord('q'):
