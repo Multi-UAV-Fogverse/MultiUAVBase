@@ -6,6 +6,7 @@ opencv-python==4.9.0.80
 pandas==2.2.0
 PyYAML==6.0
 supervision
-torch
 asyncio
 djitellopy
+aiokafka==0.7.2
+confluent-kafka==2.1.1
