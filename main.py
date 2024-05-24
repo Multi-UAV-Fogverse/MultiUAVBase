@@ -21,6 +21,11 @@ video = True
 landed = False   
 weights_path = 'yolo-Weights/yolov8n.pt'
 
+cpu_usage = 0
+memory_usage = 0
+gpu_memory_reserved = 0
+gpu_memory_allocated = 0
+
 
 model = YOLO(weights_path)
 if torch.cuda.is_available():
@@ -93,7 +98,12 @@ def process(data):
         return data
 
 def tello_video(tello, drone_number):
-    uav_headers_logger = ["uav_id", "frame_id", "created_timestamp", "client_timestamp", "latency"]
+    global cpu_usage
+    global memory_usage
+    global gpu_memory_reserved
+    global gpu_memory_allocated
+
+    uav_headers_logger = ["uav_id", "frame_id", "cpu_usage", "memory_usage", "gpu_memory_reserved", "gpu_memory_allocated", "input_timestamp", "client_timestamp", "latency"]
     fogverse_uav_logger = FogVerseLogging(
         name=f'uav_{drone_number}_scenario_1',
         dirname="uav-logs",
@@ -102,7 +112,7 @@ def tello_video(tello, drone_number):
     )
     frame_id = 0
     while not landed:
-        created_timestamp = get_timestamp()
+        input_timestamp = get_timestamp()
 
         frame = tello.get_frame_read().frame
         frame_id += 1
@@ -111,8 +121,8 @@ def tello_video(tello, drone_number):
         cv2.moveWindow(f'Tello {drone_number}', (drone_number - 1)*900, 50)
 
         client_timestamp = get_timestamp()
-        latency = client_timestamp - created_timestamp
-        frame_log = [drone_number, frame_id, created_timestamp, client_timestamp, latency]
+        latency = client_timestamp - input_timestamp
+        frame_log = [drone_number, frame_id, cpu_usage, memory_usage, gpu_memory_reserved, gpu_memory_allocated, input_timestamp, client_timestamp, latency]
         fogverse_uav_logger.csv_log(frame_log)
 
         if cv2.waitKey(50) & 0xFF == ord('q'):
@@ -142,14 +152,10 @@ def stream_off(videoThreads, telloSwarm):
 
 def monitor_resources(interval=1):
     process = psutil.Process(os.getpid())
-
-    headers = ["cpu_usage", "memory_usage", "gpu_memory_allocated", "gpu_memory_reserved"]
-    fogverse_logger = FogVerseLogging(
-            name=f'resources_logging_scenario_1',
-            dirname="resource-logs",
-            csv_header=headers,
-            level= logging.INFO + 2
-    )
+    global cpu_usage
+    global memory_usage
+    global gpu_memory_reserved
+    global gpu_memory_allocated
 
     while not landed:
         cpu_usage = process.cpu_percent(interval=interval) / psutil.cpu_count()
@@ -158,8 +164,6 @@ def monitor_resources(interval=1):
             gpu_memory_reserved = torch.cuda.memory_reserved(0) / 1024 / 1024  # Convert to MB
             gpu_memory_allocated = torch.cuda.memory_allocated(0) / 1024 / 1024  # Convert to MB
             print(f"Process CPU Usage: {cpu_usage:.2f}%, Process Memory Usage: {memory_usage:.2f} MB, GPU Memory Reserved: {gpu_memory_reserved:.2f} MB, GPU Memory Allocated: {gpu_memory_allocated:.2f} MB")
-            frame_log = [str(cpu_usage), str(memory_usage), str(gpu_memory_allocated), str(gpu_memory_reserved)]
-            fogverse_logger.csv_log(frame_log)
         else:
             print(f"Process CPU Usage: {cpu_usage:.2f}%, Process Memory Usage: {memory_usage:.2f} MB")
         time.sleep(interval)
