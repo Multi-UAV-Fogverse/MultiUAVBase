@@ -118,16 +118,20 @@ def tello_video(tello, drone_number):
         frame_id += 1
         frame = process(frame)
         cv2.imshow(f'Tello {drone_number}' , frame)
-        cv2.moveWindow(f'Tello {drone_number}', (drone_number - 1)*900, 50)
+        cv2.moveWindow(f'Tello {drone_number}', (drone_number - 1) * 900, 50)
 
         client_timestamp = get_timestamp()
         latency = client_timestamp - input_timestamp
         frame_log = [drone_number, frame_id, cpu_usage, memory_usage, gpu_memory_reserved, gpu_memory_allocated, input_timestamp, client_timestamp, latency]
         fogverse_uav_logger.csv_log(frame_log)
 
-        if cv2.waitKey(50) & 0xFF == ord('q'):
+        if cv2.waitKey(1) & 0xFF == ord('q'):
             cv2.destroyWindow(f'Tello {drone_number}')
             break
+        
+        time.sleep(0.01)  # Small delay to allow other threads to run
+    
+    cv2.destroyAllWindows()
 
 def stream_on(telloSwarm):
     telloSwarm.parallel(lambda drone, tello: tello.streamon())
@@ -140,7 +144,6 @@ def stream_on(telloSwarm):
             videoThreads.append(tello_video_new)
 
         time.sleep(3)
-    
     return videoThreads
 
 def stream_off(videoThreads, telloSwarm):
