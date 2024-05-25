@@ -1,0 +1,8 @@
+flask
+flask-socketio
+torch
+opencv-python-headless
+Pillow
+ultralytics
+requests
+numpy

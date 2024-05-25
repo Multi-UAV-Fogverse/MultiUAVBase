@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  process_frame:
+    build: ./executor
+    container_name: executor
+    ports:
+      - "5000:5000"
+    networks:
+      - drone_network
+
+  display_frame:
+    build: ./client
+    container_name: client
+    ports:
+      - "5001:5001"
+    networks:
+      - drone_network
+
+networks:
+  drone_network:
+    driver: bridge
