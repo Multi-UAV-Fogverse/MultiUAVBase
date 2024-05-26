@@ -1,13 +1,32 @@
-from flask import Flask, render_template, jsonify
-from flask_socketio import SocketIO, emit
+from flask import Flask, render_template, jsonify, Response
 import requests
+from threading import Thread
+import time
+import eventlet
+import eventlet.wsgi
+
+eventlet.monkey_patch()
 
 app = Flask(__name__)
-socketio = SocketIO(app)
+
+frame_store = {}
+
+def fetch_frame(drone_id):
+    while True:
+        try:
+            response = requests.get(f'http://base_executor:5000/get_frame/{drone_id}')
+            if response.status_code == 200:
+                frame_store[drone_id] = response.content
+                print(f"Fetched frame for drone {drone_id}")
+            else:
+                print(f"Failed to get frame for drone {drone_id}: {response.text}")
+        except Exception as e:
+            print(f"Error fetching frame for drone {drone_id}: {e}")
+        time.sleep(1)
 
 @app.route('/')
 def control_center():
-    response = requests.get('http://process_frame:5000/get_drones')
+    response = requests.get('http://base_executor:5000/get_drones')
     if response.status_code == 200:
         uav_list = response.json()
     else:
@@ -16,11 +35,16 @@ def control_center():
 
 @app.route('/<int:drone_id>')
 def index(drone_id):
+    if drone_id not in frame_store:
+        Thread(target=fetch_frame, args=(drone_id,), daemon=True).start()
     return render_template('index.html', drone_id=drone_id)
 
-@socketio.on('processed_frame')
-def handle_processed_frame(data):
-    emit('frame_update', data, broadcast=True)
+@app.route('/get_frame/<int:drone_id>', methods=['GET'])
+def get_frame(drone_id):
+    if drone_id in frame_store:
+        return Response(frame_store[drone_id], content_type='image/jpeg')
+    else:
+        return 'No frame', 404
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5001)
+    eventlet.wsgi.server(eventlet.listen(('0.0.0.0', 5001)), app)

@@ -12,3 +12,4 @@ pandas==2.2.0
 PyYAML==6.0
 eventlet
 psutil
+gunicorn

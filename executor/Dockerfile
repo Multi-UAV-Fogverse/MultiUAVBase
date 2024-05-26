@@ -26,4 +26,4 @@ RUN git clone --recurse-submodules https://github.com/fogverse/fogverse.git /app
 COPY . /app/
 
 # Run the application
-CMD ["python", "main.py"]
+CMD ["gunicorn", "--worker-class", "eventlet", "--workers", "4", "--threads", "2", "--bind", "0.0.0.0:5000", "wsgi:app"]

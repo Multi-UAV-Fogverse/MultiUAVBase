@@ -1,12 +1,13 @@
-from flask import Flask, request
-from flask_socketio import SocketIO, emit
+from flask import Flask, request, jsonify
 import cv2
 import numpy as np
 import torch
 from ultralytics import YOLO
+import eventlet
+import base64
 
+eventlet.monkey_patch()
 app = Flask(__name__)
-socketio = SocketIO(app)
 
 weights_path = 'yolo-Weights/yolov8n.pt'
 model = YOLO(weights_path)
@@ -16,12 +17,17 @@ else:
     print("CUDA not available. Model using CPU.")
 
 frames = {}
+drone_ids = set()
 
-@socketio.on('frame')
-def process_frame(data):
-    drone_number = data['drone_id']
-    nparr = np.frombuffer(request.data, np.uint8)
+@app.route('/process_frame', methods=['POST'])
+def process_frame():
+    frame_data = request.get_json()
+    drone_number = frame_data['drone_id']
+    drone_ids.add(drone_number)
+    decode_frame = base64.b64decode(frame_data['frame'])
+    nparr = np.frombuffer(decode_frame, np.uint8)
     data = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
     # Ensure the data is in the correct format
     if len(data.shape) == 3 and data.shape[2] == 3:  # Check for 3-channel image
         results = model(data)  # Get the results from the model
@@ -41,10 +47,11 @@ def process_frame(data):
                 cv2.putText(annotated_frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
         _, buffer = cv2.imencode('.jpg', annotated_frame)
         frames[drone_number] = buffer.tobytes()
-        emit('processed_frame', {'drone_id': drone_number, 'frame': buffer.tobytes()})
+        print(f"Processed and stored frame for drone {drone_number}")
+        return jsonify({'status': 'Frame processed'}), 200
     else:
         print("Error: Input data is not in the correct format.")
-
+        return jsonify({'status': 'Incorrect format'}), 404
 
 @app.route('/get_frame/<int:drone_id>', methods=['GET'])
 def get_frame(drone_id):
@@ -53,5 +60,9 @@ def get_frame(drone_id):
     else:
         return 'No frame', 404
 
+@app.route('/get_drones', methods=['GET'])
+def get_drone_total():
+    return list(drone_ids)
+
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000)

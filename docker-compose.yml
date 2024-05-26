@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  base_executor:
+    build: ./executor
+    container_name: base_executor
+    ports:
+      - "5000:5000"
+    networks:
+      - drone_network
+    deploy:
+      resources:
+        limits:
+          cpus: '5'      # Limit the service to 5 CPUs
+          memory: 2g       # Limit the service to 2GB of memory
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    stdin_open: true
+    tty: true
+
+  base_client:
+    build: ./client
+    container_name: base_client
+    ports:
+      - "5001:5001"
+    networks:
+      - drone_network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'      # Limit the service to 5 CPUs
+          memory: 2g       # Limit the service to 2GB of memory
+
+networks:
+  drone_network:
+    driver: bridge
