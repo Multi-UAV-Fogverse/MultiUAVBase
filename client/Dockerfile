@@ -24,7 +24,7 @@ COPY . /app/
 RUN git clone --recurse-submodules https://github.com/fogverse/fogverse.git /app/fogverse
 
 # Expose the port that Flask will run on
-EXPOSE 5000
+EXPOSE 5001
 
 # Run the application
-CMD ["gunicorn", "--worker-class", "eventlet", "--workers", "3", "--threads", "2", "--bind", "0.0.0.0:5001", "wsgi:app"]
+CMD ["gunicorn", "--worker-class", "eventlet", "--workers", "3", "--threads", "2", "--bind", "0.0.0.0:5001", "main:app"]
