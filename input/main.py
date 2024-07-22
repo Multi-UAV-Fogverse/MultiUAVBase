@@ -2,11 +2,14 @@ import cv2
 import time
 import logging
 import threading
-import requests
 import base64
 from djitellopy import Tello, TelloSwarm
 from fogverse.util import get_timestamp_str
-import psutil, os
+import psutil
+import os
+import json
+import asyncio
+from aiokafka import AIOKafkaProducer
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
@@ -15,8 +18,10 @@ logger = logging.getLogger()
 cpu_usage = 0
 memory_usage = 0
 
+KAFKA_SERVER = 'localhost:9094'
+
 def setup():
-    listIp = ["192.168.0.101", "192.168.0.102","192.168.0.103"]  # Add more IPs as needed
+    listIp = ["192.168.0.101", "192.168.0.102", "192.168.0.103"] 
     telloSwarm = TelloSwarm.fromIps(listIp)
     for index, tello in enumerate(telloSwarm.tellos):
         tello.LOGGER.setLevel(logging.ERROR)
@@ -27,7 +32,22 @@ def setup():
         tello.set_video_bitrate(Tello.BITRATE_1MBPS)
     return telloSwarm
 
-def send_frame(tello, drone_number):
+async def kafka_producer(data, drone_number):
+    topic = "uav_" + str(drone_number)
+    producer = AIOKafkaProducer(
+        bootstrap_servers=KAFKA_SERVER,
+        value_serializer=lambda v: json.dumps(v).encode('utf-8')
+    )
+    await producer.start()
+    try:
+        await producer.send_and_wait(topic, data)
+        logger.info(f"Message sent to {topic}")
+    except Exception as e:
+        logger.error(f"Error sending message to {topic}: {e}")
+    finally:
+        await producer.stop()
+
+async def send_frame(tello, drone_number):
     global cpu_usage
     global memory_usage
 
@@ -35,7 +55,7 @@ def send_frame(tello, drone_number):
     while True:
         try:
             frame = tello.get_frame_read().frame
-            _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 30])  # Reduce quality to 70%
+            _, buffer = cv2.imencode('.jpg', frame)
             encoded_frame = base64.b64encode(buffer).decode('utf-8')
             payload = {
                 'drone_id': drone_number,
@@ -46,14 +66,12 @@ def send_frame(tello, drone_number):
                 'input_cpu_usage': str(cpu_usage),
                 'input_memory_usage': str(memory_usage)
             }
-            response = requests.post('http://localhost:5000/process_frame', json=payload)
-            logger.info(f"Frame sent for drone {drone_number} with response {response.status_code}")
+            await kafka_producer(payload, drone_number)
+            logger.info(f"Frame sent for drone {drone_number}")
             frame_id += 1
-            if response.status_code != 200:
-                logger.error(f"Failed to send frame for drone {drone_number}: {response.text}")
         except Exception as e:
             logger.error(f"Error grabbing frame from drone {drone_number}: {e}")
-        time.sleep(0.033)
+        await asyncio.sleep(0.033)
 
 def monitor_resources(interval=1):
     process = psutil.Process(os.getpid())
@@ -66,20 +84,19 @@ def monitor_resources(interval=1):
         print(f"Process CPU Usage: {cpu_usage:.2f}%, Process Memory Usage: {memory_usage:.2f} MB")
         time.sleep(interval)
 
-def main():
+async def main():
     telloSwarm = setup()
-    videoThreads = []
+    video_tasks = []
     for index, tello in enumerate(telloSwarm.tellos):
-        tello_video_new = threading.Thread(target=send_frame, args=(tello, index + 1), daemon=True)
+        tello_video_task = asyncio.create_task(send_frame(tello, index + 1))
         logger.info(f'Tello {index + 1} Battery: {tello.get_battery()}')
-        tello_video_new.start()
-        videoThreads.append(tello_video_new)
+        video_tasks.append(tello_video_task)
 
     # Start resource monitoring in a separate thread
     monitor_thread = threading.Thread(target=monitor_resources, daemon=True)
     monitor_thread.start()
-    for t in videoThreads:
-        t.join()
+
+    await asyncio.gather(*video_tasks)
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())

@@ -1,8 +1,7 @@
 ultralytics
-opencv-python-headless
 Pillow
 numpy==1.23.5
-opencv-python==4.9.0.80
+opencv-python
 pandas==2.2.0
 PyYAML==6.0
 supervision
@@ -11,3 +10,4 @@ djitellopy
 aiokafka==0.7.2
 confluent-kafka==2.1.1
 python-socketio
+confluent-kafka

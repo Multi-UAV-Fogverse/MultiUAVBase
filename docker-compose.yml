@@ -7,7 +7,7 @@ services:
     ports:
       - "5000:5000"
     networks:
-      - drone_network
+      - multiuavfogverse
     deploy:
       resources:
         limits:
@@ -27,13 +27,17 @@ services:
     ports:
       - "5001:5001"
     networks:
-      - drone_network
+      - multiuavfogverse
     deploy:
       resources:
         limits:
           cpus: '2'      # Limit the service to 5 CPUs
           memory: 2g       # Limit the service to 2GB of memory
 
+volumes:
+  uav_data:
+    driver: local
+
 networks:
-  drone_network:
-    driver: bridge
+  multiuavfogverse:
+    external: true

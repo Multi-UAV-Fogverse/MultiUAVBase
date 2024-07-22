@@ -27,13 +27,11 @@
     ></script>
     <script type="text/javascript">
         const drone_id = {{ drone_id }};
-        const videoSocket = io.connect();
+        const videoSocket = io.connect('http://' + document.domain + ':' + location.port);
         console.log(drone_id)
         videoSocket.on('frame_update', function(data) {
-            if (data.drone_id === drone_id) {
-                const blob = new Blob([data.frame], { type: 'image/jpeg' });
-                const url = URL.createObjectURL(blob);
-                document.getElementById('img-feed').src = url;
+            if (data.drone_id == drone_id) {
+                document.getElementById('img-feed').src = 'data:image/jpeg;base64,' + data.frame;
             }
         });
     </script>
