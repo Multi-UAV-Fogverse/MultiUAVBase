@@ -21,7 +21,7 @@ memory_usage = 0
 KAFKA_SERVER = 'localhost:9094'
 
 def setup():
-    listIp = ["192.168.0.101", "192.168.0.102", "192.168.0.103"] 
+    listIp = ["192.168.0.101", "192.168.0.102", "192.168.0.103", "192.168.0.104"] 
     telloSwarm = TelloSwarm.fromIps(listIp)
     for index, tello in enumerate(telloSwarm.tellos):
         tello.LOGGER.setLevel(logging.ERROR)
@@ -33,7 +33,7 @@ def setup():
     return telloSwarm
 
 async def kafka_producer(data, drone_number):
-    topic = "uav_" + str(drone_number)
+    topic = "input_" + str(drone_number)
     producer = AIOKafkaProducer(
         bootstrap_servers=KAFKA_SERVER,
         value_serializer=lambda v: json.dumps(v).encode('utf-8')

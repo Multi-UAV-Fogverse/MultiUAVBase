@@ -4,6 +4,7 @@ import base64
 import eventlet
 import psutil, threading, os, time, logging, csv
 from fogverse.util import get_timestamp_str, get_timestamp, timestamp_to_datetime
+from concurrent.futures import ThreadPoolExecutor
 
 eventlet.monkey_patch()
 
@@ -17,18 +18,30 @@ cpu_usage = 0
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
 logger = logging.getLogger()
 
-# CSV file setup
-csv_file_path = 'logs/frame_logs.csv'
-csv_headers = ["uav_id", "frame_id", "cpu_usage", "memory_usage", "gpu_memory_reserved", "gpu_memory_allocated", "input_timestamp", "client_timestamp", "latency"]
+# Thread pool executor for non-blocking file operations
+executor = ThreadPoolExecutor(max_workers=4)
 
-# Ensure the directory exists
-os.makedirs(os.path.dirname(csv_file_path), exist_ok=True)
+def setup_csv_logging(uav_id):
+    # CSV file setup
+    csv_file_path = f'logs/log_csv_uav_{uav_id}_scenario_4.csv'
+    csv_headers = ["uav_id", "frame_id", "cpu_usage", "memory_usage", "gpu_memory_reserved", "gpu_memory_allocated", "input_timestamp", "client_timestamp", "latency"]
 
-# Create CSV file if it doesn't exist and write the header
-if not os.path.exists(csv_file_path):
-    with open(csv_file_path, 'w', newline='') as csvfile:
+    # Ensure the directory exists
+    os.makedirs(os.path.dirname(csv_file_path), exist_ok=True)
+
+    # Create CSV file if it doesn't exist and write the header
+    if not os.path.exists(csv_file_path):
+        with open(csv_file_path, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(csv_headers)
+    
+    return csv_file_path, csv_headers
+
+def append_to_csv(csv_file_path, frame_log):
+    # Append log to CSV file
+    with open(csv_file_path, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(csv_headers)
+        writer.writerow(frame_log)
 
 def monitor_resources(interval=1):
     process = psutil.Process(os.getpid())
@@ -72,10 +85,11 @@ def receive_frame(drone_id):
 
     logger.info(f"Received frame: {frame_log}")
 
-    # Append log to CSV file
-    with open(csv_file_path, 'a', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(frame_log)
+    # Get CSV file path and headers
+    csv_file_path, _ = setup_csv_logging(data['uav_id'])
+
+    # Append log to CSV file in a separate thread
+    executor.submit(append_to_csv, csv_file_path, frame_log)
 
     return jsonify({'status': 'Frame received'}), 200
 
