@@ -3,13 +3,12 @@ import time
 import logging
 import threading
 import base64
-from djitellopy import Tello, TelloSwarm
-from fogverse.util import get_timestamp_str
 import psutil
 import os
 import json
 import asyncio
-from aiokafka import AIOKafkaProducer, AIOKafkaConsumer
+import imagezmq
+from fogverse.util import get_timestamp_str
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
@@ -18,20 +17,8 @@ logger = logging.getLogger()
 cpu_usage = 0
 memory_usage = 0
 
-KAFKA_SERVER = 'localhost:9094'  # Replace with your Kafka server address
-
-async def kafka_producer(data, drone_number):
-    topic = "input_" + str(drone_number)
-    producer = AIOKafkaProducer(
-        bootstrap_servers=KAFKA_SERVER,
-        value_serializer=lambda v: json.dumps(v).encode('utf-8')
-    )
-    await producer.start()
-    try:
-        await producer.send_and_wait(topic, data)
-        logger.info(f"Message sent to {topic}")
-    finally:
-        await producer.stop()
+# Initialize ImageSender with the address of the server
+image_sender = imagezmq.ImageSender(connect_to='tcp://localhost:5000')
 
 async def send_frame(webcam):
     global cpu_usage
@@ -46,16 +33,17 @@ async def send_frame(webcam):
                 continue
             _, buffer = cv2.imencode('.jpg', frame)
             encoded_frame = base64.b64encode(buffer).decode('utf-8')
-            payload = {
+            metadata = {
                 'drone_id': 1,
-                'frame': encoded_frame,
                 'uav_id': str(1),
                 'frame_id': str(frame_id),
                 'input_timestamp': get_timestamp_str(),
                 'input_cpu_usage': str(cpu_usage),
                 'input_memory_usage': str(memory_usage)
             }
-            await kafka_producer(payload, 1)
+            # Send the frame as a numpy array and the metadata as a separate message
+            metadata_json = json.dumps(metadata)
+            image_sender.send_image("webcam", frame)
             logger.info(f"Frame sent for drone {1}")
             frame_id += 1
         except Exception as e:

@@ -11,7 +11,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '5'      # Limit the service to 5 CPUs
+          cpus: '4'      # Limit the service to 5 CPUs
           memory: 2g       # Limit the service to 2GB of memory
         reservations:
           devices:
@@ -25,14 +25,29 @@ services:
     build: ./client
     container_name: base_client
     ports:
+      - "8000:8000"
+    networks:
+      - multiuavfogverse
+    depends_on:
+      - image_receiver
+    deploy:
+      resources:
+        limits:
+          cpus: '2' 
+          memory: 1g      
+  
+  image_receiver:
+    build:
+      context: ./image_receiver
+    ports:
       - "5001:5001"
     networks:
       - multiuavfogverse
     deploy:
       resources:
         limits:
-          cpus: '2'      # Limit the service to 5 CPUs
-          memory: 2g       # Limit the service to 2GB of memory
+          cpus: '1'
+          memory: 1g     
 
 volumes:
   uav_data:

@@ -9,7 +9,7 @@ import psutil
 import os
 import json
 import asyncio
-from aiokafka import AIOKafkaProducer
+import imagezmq
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
@@ -18,10 +18,11 @@ logger = logging.getLogger()
 cpu_usage = 0
 memory_usage = 0
 
-KAFKA_SERVER = 'localhost:9094'
+# Initialize ImageSender with the address of the server
+image_sender = imagezmq.ImageSender(connect_to='tcp://server_address:5555')
 
 def setup():
-    listIp = ["192.168.0.101", "192.168.0.102", "192.168.0.103", "192.168.0.104"] 
+    listIp = ["192.168.0.101", "192.168.0.102", "192.168.0.103", "192.168.0.104"]
     telloSwarm = TelloSwarm.fromIps(listIp)
     for index, tello in enumerate(telloSwarm.tellos):
         tello.LOGGER.setLevel(logging.ERROR)
@@ -31,21 +32,6 @@ def setup():
         tello.set_video_resolution(Tello.RESOLUTION_480P)
         tello.set_video_bitrate(Tello.BITRATE_1MBPS)
     return telloSwarm
-
-async def kafka_producer(data, drone_number):
-    topic = "input_" + str(drone_number)
-    producer = AIOKafkaProducer(
-        bootstrap_servers=KAFKA_SERVER,
-        value_serializer=lambda v: json.dumps(v).encode('utf-8')
-    )
-    await producer.start()
-    try:
-        await producer.send_and_wait(topic, data)
-        logger.info(f"Message sent to {topic}")
-    except Exception as e:
-        logger.error(f"Error sending message to {topic}: {e}")
-    finally:
-        await producer.stop()
 
 async def send_frame(tello, drone_number):
     global cpu_usage
@@ -66,7 +52,7 @@ async def send_frame(tello, drone_number):
                 'input_cpu_usage': str(cpu_usage),
                 'input_memory_usage': str(memory_usage)
             }
-            await kafka_producer(payload, drone_number)
+            image_sender.send_image('drone' + str(drone_number), frame)
             logger.info(f"Frame sent for drone {drone_number}")
             frame_id += 1
         except Exception as e:

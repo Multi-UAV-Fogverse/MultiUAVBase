@@ -1,6 +1,6 @@
 FROM python:3.8-slim
 
-# Install dependencies for OpenCV
+# Install dependencies for OpenCV and imagezmq
 RUN apt-get update && apt-get install -y \
     libgl1-mesa-glx \
     libglib2.0-0
@@ -13,4 +13,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . /app
 
-CMD ["sh", "-c", "python manage.py migrate && daphne -b 0.0.0.0 -p 8000 client_web.asgi:application"]
+CMD ["python", "receiver.py"]

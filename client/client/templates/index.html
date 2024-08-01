@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drone {{ drone_id }}</title>
+</head>
+<body>
+    <div class="container">
+        <h3 class="mt-5">Live Streaming for Drone {{ drone_id }}</h3>
+        <img id="img-feed" src="#" width="100%" />
+    </div>
+    <script type="text/javascript">
+        document.addEventListener('DOMContentLoaded', function() {
+            const drone_id = "{{ drone_id }}";
+            const ws = new WebSocket('ws://localhost:8000/ws/image/');
+
+            ws.onopen = function(event) {
+                console.log('WebSocket is open now.');
+            };
+
+            ws.onclose = function(event) {
+                console.log('WebSocket is closed now.');
+            };
+
+            ws.onmessage = function(event) {
+                console.log('Message received from server:', event.data);
+                const data = JSON.parse(event.data);
+                const imgElement = document.getElementById('img-feed');
+                imgElement.src = 'data:image/jpeg;base64,' + data.image;
+                console.log('Updated image src:', imgElement.src);
+            };
+
+            ws.onerror = function(event) {
+                console.error('WebSocket error observed:', event);
+            };
+        });
+    </script>
+</body>
+</html>

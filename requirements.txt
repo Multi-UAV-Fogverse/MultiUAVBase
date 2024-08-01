@@ -7,7 +7,5 @@ PyYAML==6.0
 supervision
 asyncio
 djitellopy
-aiokafka==0.7.2
-confluent-kafka==2.1.1
 python-socketio
-confluent-kafka
+imagezmq
