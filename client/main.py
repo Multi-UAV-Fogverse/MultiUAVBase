@@ -23,7 +23,7 @@ executor = ThreadPoolExecutor(max_workers=4)
 
 def setup_csv_logging(uav_id):
     # CSV file setup
-    csv_file_path = f'logs/log_csv_uav_{uav_id}_scenario_4.csv'
+    csv_file_path = f'logs/log_csv_uav_{uav_id}_scenario_1.csv'
     csv_headers = ["uav_id", "frame_id", "cpu_usage", "memory_usage", "gpu_memory_reserved", "gpu_memory_allocated", "input_timestamp", "client_timestamp", "latency"]
 
     # Ensure the directory exists

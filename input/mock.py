@@ -3,13 +3,12 @@ import time
 import logging
 import threading
 import base64
-from djitellopy import Tello, TelloSwarm
-from fogverse.util import get_timestamp_str
 import psutil
 import os
 import json
 import asyncio
 from aiokafka import AIOKafkaProducer
+from fogverse.util import get_timestamp_str
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
@@ -20,20 +19,18 @@ memory_usage = 0
 
 KAFKA_SERVER = 'localhost:9094'
 
-def setup():
-    listIp = ["192.168.0.102", "192.168.0.103", "192.168.0.104", "192.168.0.105"] 
-    telloSwarm = TelloSwarm.fromIps(listIp)
-    for index, tello in enumerate(telloSwarm.tellos):
-        tello.LOGGER.setLevel(logging.ERROR)
-        tello.connect()
-        tello.streamon()
-        tello.change_vs_udp(8881 + index)
-        tello.set_video_resolution(Tello.RESOLUTION_480P)
-        tello.set_video_bitrate(Tello.BITRATE_1MBPS)
-    return telloSwarm
+def setup(video_sources):
+    video_captures = []
+    for source in video_sources:
+        cap = cv2.VideoCapture(source)
+        if not cap.isOpened():
+            logger.error(f"Error opening video source {source}")
+            continue
+        video_captures.append(cap)
+    return video_captures
 
-async def kafka_producer(data, drone_number):
-    topic = "input_" + str(drone_number)
+async def kafka_producer(data, source_number):
+    topic = "input_" + str(source_number)
     producer = AIOKafkaProducer(
         bootstrap_servers=KAFKA_SERVER,
         value_serializer=lambda v: json.dumps(v).encode('utf-8')
@@ -47,30 +44,33 @@ async def kafka_producer(data, drone_number):
     finally:
         await producer.stop()
 
-async def send_frame(tello, drone_number):
+async def send_frame(cap, source_number):
     global cpu_usage
     global memory_usage
 
     frame_id = 1
     while True:
         try:
-            frame = tello.get_frame_read().frame
+            ret, frame = cap.read()
+            if not ret:
+                logger.error(f"Failed to read frame from source {source_number}")
+                break
+
             _, buffer = cv2.imencode('.jpg', frame)
             encoded_frame = base64.b64encode(buffer).decode('utf-8')
             payload = {
-                'drone_id': drone_number,
+                'uav_id': source_number,
                 'frame': encoded_frame,
-                'uav_id': str(drone_number),
                 'frame_id': str(frame_id),
                 'input_timestamp': get_timestamp_str(),
                 'input_cpu_usage': str(cpu_usage),
                 'input_memory_usage': str(memory_usage)
             }
-            await kafka_producer(payload, drone_number)
-            logger.info(f"Frame sent for drone {drone_number}")
+            await kafka_producer(payload, source_number)
+            logger.info(f"Frame sent for source {source_number}")
             frame_id += 1
         except Exception as e:
-            logger.error(f"Error grabbing frame from drone {drone_number}: {e}")
+            logger.error(f"Error processing frame from source {source_number}: {e}")
         await asyncio.sleep(0.033)
 
 def monitor_resources(interval=1):
@@ -85,12 +85,18 @@ def monitor_resources(interval=1):
         time.sleep(interval)
 
 async def main():
-    telloSwarm = setup()
+    # Replace IPs with video sources (e.g., camera IDs or file paths)
+    video_sources = ["./input/sources/documentation.mp4"]  # 0 refers to the default camera
+    video_captures = setup(video_sources)
+
+    if not video_captures:
+        logger.error("No valid video sources found. Exiting...")
+        return
+
     video_tasks = []
-    for index, tello in enumerate(telloSwarm.tellos):
-        tello_video_task = asyncio.create_task(send_frame(tello, index + 1))
-        logger.info(f'Tello {index + 1} Battery: {tello.get_battery()}')
-        video_tasks.append(tello_video_task)
+    for index, cap in enumerate(video_captures):
+        video_task = asyncio.create_task(send_frame(cap, index + 1))
+        video_tasks.append(video_task)
 
     # Start resource monitoring in a separate thread
     monitor_thread = threading.Thread(target=monitor_resources, daemon=True)

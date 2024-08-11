@@ -14,7 +14,7 @@ import os
 
 logger = logging.getLogger()
 
-weights_path = 'yolo-Weights/yolov8n.pt'
+weights_path = 'yolo-Weights/best.pt'
 model = YOLO(weights_path)
 if torch.cuda.is_available():
     model.to('cuda')
